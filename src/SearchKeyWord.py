@@ -12,7 +12,7 @@ try:
 except ImportError:
     from urllib import pathname2url as quote
 
-DEBUG = 0
+DEBUG = 1
 
 class dmhy_search(object):
     domain = "https://share.dmhy.org"
@@ -32,10 +32,12 @@ class dmhy_search(object):
        "User-Agent":"Mozilla/5.0 (Windows NT 10.0.14393; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2950.5 Safari/537.36"
        }
 
-    def __init__(self, keyword= str(), episodes = list):
+    def __init__(self, keyword= str(), episodes = list, class_num = 0):
         self.search_list_info = dict() # title , seed, finish, magent
         self.search_list_magent = []
         self.number = episodes
+        group = {0:"動畫",1:"季度全集",2:"ＲＡＷ",3:"漫畫"}
+        self.search_class = group[class_num]
         key = quote(keyword)
         self.url = self.search_link + key
         for num in self.number:
@@ -60,20 +62,22 @@ class dmhy_search(object):
             for link in animate:
                 tmp = link.find("td", "title")
                 title = (tmp.find("a", target="_blank")).text.strip()
-                tmp = link.find_all("td", nowrap="nowrap")
-                magent = (tmp[0].a).get('href') #magent
-                size = tmp[1].text.strip() #size
-                seed = tmp[2].text.strip() # seed
-                finished = tmp[3].text.strip() # finished
-                seg_list = jieba.cut(title, cut_all=True, HMM=True)
-                for item in seg_list: 
-                    try:
-                        temp = int(item)
-                    except:
-                        temp = item
-                    if temp in self.number:
-                        info = [title,seed,finished,magent] 
-                        self.search_list_info[temp].append(info)
+                Web_class = (link.find("font")).text.strip()
+                if Web_class == self.search_class:
+                    tmp = link.find_all("td", nowrap="nowrap")
+                    magent = (tmp[0].a).get('href') #magent
+                    size = tmp[1].text.strip() #size
+                    seed = tmp[2].text.strip() # seed
+                    finished = tmp[3].text.strip() # finished
+                    seg_list = jieba.cut(title, cut_all=True, HMM=True)
+                    for item in seg_list: 
+                        try:
+                            temp = int(item)
+                        except:
+                            temp = item
+                        if temp in self.number:
+                            info = [title,seed,finished,magent] 
+                            self.search_list_info[temp].append(info)
 
             change_page = result[0].find("div", class_= "fl")
             page_links = change_page.find_all("a")
@@ -95,5 +99,5 @@ class dmhy_search(object):
 
 
 if DEBUG == 1:
-    test = dmhy_search("海贼王",[910,877,812])
+    test = dmhy_search("魔法禁书目录",[1,2,3])
     test.run()
