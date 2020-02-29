@@ -1,15 +1,18 @@
+#this file is to find torrent to download, use jieba to find episode and format 
+
 import os
 import subprocess
 import requests
 import re
 from bs4 import BeautifulSoup
+import jieba
 
 try:
     from urllib.parse import quote
 except ImportError:
     from urllib import pathname2url as quote
 
-DEBUG = 1
+DEBUG = 0
 
 class dmhy_search(object):
     domain = "https://share.dmhy.org"
@@ -29,20 +32,24 @@ class dmhy_search(object):
        "User-Agent":"Mozilla/5.0 (Windows NT 10.0.14393; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2950.5 Safari/537.36"
        }
 
-    def __init__(self, keyword= str()):
-        self.search_list_info = []
+    def __init__(self, keyword= str(), episodes = list):
+        self.search_list_info = dict() # title , seed, finish, magent
         self.search_list_magent = []
-        self.word = keyword
+        self.number = episodes
+        key = quote(keyword)
+        self.url = self.search_link + key
+        for num in self.number:
+            self.search_list_info[num] = []
 
-    def run(self):
-        key = quote(self.word)
-        url = self.search_link + key
-        self.extract_info(url)
-        print (self.search_list_info)
+    def run(self):       
+        self.extract_info()
+        self.sort_hot_resource()
+       
 
-    def extract_info(self,url):
+    def extract_info(self):
         count = 0
-        while count < 2:
+        url = self.url 
+        while count < 100:
             res=requests.get(url)
             bs=BeautifulSoup(res.text,"html.parser")
             result = bs.find_all("div", class_="table clear")
@@ -58,20 +65,35 @@ class dmhy_search(object):
                 size = tmp[1].text.strip() #size
                 seed = tmp[2].text.strip() # seed
                 finished = tmp[3].text.strip() # finished
-                info = title + '+'+size+'+'+seed+'+'+finished
-                self.search_list_info.append(info)
-                self.search_list_magent.append(magent)
+                seg_list = jieba.cut(title, cut_all=True, HMM=True)
+                for item in seg_list: 
+                    try:
+                        temp = int(item)
+                    except:
+                        temp = item
+                    if temp in self.number:
+                        info = [title,seed,finished,magent] 
+                        self.search_list_info[temp].append(info)
 
             change_page = result[0].find("div", class_= "fl")
             page_links = change_page.find_all("a")
-            if len(page_links) < 1:
-                return
-            if len(page_links) < 2:
+            if len(page_links) > 1 or (len(page_links) == 1 and count == 0):
                 count = count + 1
+            else:
+                return 
             next_page = page_links[-1].get('href')
             url = self.domain + next_page
 
+    def sort_hot_resource(self):
+        for key in self.search_list_info:
+            temp_list = self.search_list_info[key]
+            if len(temp_list) is not  0:
+                temp_list.sort(key=lambda x: (x[1], x[2]))
+                self.search_list_magent.append(temp_list[-1])
+        print(self.search_list_magent)
+
+
 
 if DEBUG == 1:
-    test = dmhy_search("宝石商人理查德的谜鉴定")
+    test = dmhy_search("海贼王",[910,877,812])
     test.run()
