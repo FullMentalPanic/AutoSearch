@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #this file is to find torrent to download, use jieba to find episode and format 
 
 import os
@@ -12,7 +13,7 @@ try:
 except ImportError:
     from urllib import pathname2url as quote
 
-DEBUG = 1
+DEBUG = 0
 
 class dmhy_search(object):
     domain = "https://share.dmhy.org"
@@ -46,6 +47,7 @@ class dmhy_search(object):
     def run(self):       
         self.extract_info()
         self.sort_hot_resource()
+        return(self.search_list_magent)
        
 
     def extract_info(self):
@@ -94,10 +96,10 @@ class dmhy_search(object):
             if len(temp_list) is not  0:
                 temp_list.sort(key=lambda x: (x[1], x[2]))
                 self.search_list_magent.append(temp_list[-1])
-        print(self.search_list_magent)
+
 
 
 
 if DEBUG == 1:
-    test = dmhy_search("魔法禁书目录",[1,2,3])
-    test.run()
+    test = dmhy_search("海贼王",[905,906,907,908,909,910])
+    print (test.run())#海贼王 905 923
