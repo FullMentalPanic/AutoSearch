@@ -3,7 +3,9 @@ import subprocess
 import os
 import time
 import psutil
+import platform    # For getting the operating system name
 
+DEBUG = 0
 
 class RemoteDownloadServer(object):
     def __init__(self,ip= str(),port=str()):
@@ -19,7 +21,8 @@ class RemoteDownloadServer(object):
 
     def download_torrent(self, torrent, location):
         base_path = "/downloads/"
-        abs_path = (base_path + str(location)+'/')#encode('utf-8')
+        temp = str(location).replace(" ","_")
+        abs_path = (base_path + temp+'/')#encode('utf-8')
         self.creat_folder(abs_path)
         transmission_add_torrent = ["/usr/bin/transmission-remote",self.server, "-n", "transmission:transmission",]
         transmission_add_torrent.append("--add")
@@ -54,19 +57,32 @@ class RemoteDownloadServer(object):
     def remote_ip_present(self):
         return self.ip in self.remote_ips() 
 
+
+    def ping(self):
+        # Option for the number of packets as a function of
+        param = '-n' if platform.system().lower()=='windows' else '-c'
+        # Building the command. Ex: "ping -c 1 google.com"
+        command = ['ping', param, '1', self.ip]
+
+        return subprocess.call(command) == 0
+
     def List_Torrent(self):
-        cmd = "/usr/bin/transmission-remote " + self.server + " -n transmission:transmission -l"
-        transmission_list = [cmd]
-        temp, err = subprocess.Popen(transmission_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
-        var = []
-        temp = str(temp)
-        #print (temp)
-        for line in temp.split('\\n'):
-            print (line)
-            var.append(line)
-        var.pop(-1)
-        var.pop(-1)
-        var.pop(0)
+        try:
+            cmd = "/usr/bin/transmission-remote " + self.server + " -n transmission:transmission -l"
+            transmission_list = [cmd]
+            temp, err = subprocess.Popen(transmission_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
+            var = []
+            temp = str(temp)
+            #print (temp)
+            for line in temp.split('\\n'):
+                print (line)
+                var.append(line)
+            var.pop(-1)
+            var.pop(-1)
+            var.pop(0)
+        except: 
+            print("can not get list table")
+            var = []
         return var
         
     def Romove_Torrent(self,id):
@@ -92,3 +108,11 @@ class RemoteDownloadServer(object):
             if ID != '-t':
                 self.Romove_Torrent(ID)
 
+if DEBUG == 1:
+    IP = "192.168.1.102"
+    PORT = "9091"
+    server = RemoteDownloadServer(IP, PORT)
+    if server.ping():
+        print ("connect")
+    else:
+        print("No connect")
