@@ -13,7 +13,7 @@ class SQLClient(object):
         db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
         self.db = create_engine(db_connection_str)
         self.connection = self.db.connect()
-        IP = "192.168.1.102"
+        IP = "localhost"
         PORT = "9091"
         self.server = RemoteDownloadServer(IP, PORT)
 

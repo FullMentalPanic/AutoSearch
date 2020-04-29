@@ -12,7 +12,10 @@ class RemoteDownloadServer(object):
         print("Transmission is start....")
         self.server = ip + ':'+port
         self.ip = ip
-        self.ssh_user = "root@"+ ip
+        if ip is "localhost":
+            self.ssh_user = "None"           
+        else:
+            self.ssh_user = "root@"+ ip
     
     def start_download(self,keyword = str(),torrents = list()):
         for torrent in torrents:
@@ -20,7 +23,7 @@ class RemoteDownloadServer(object):
 
 
     def download_torrent(self, torrent, location):
-        base_path = "/downloads/"
+        base_path = "/home/liang/dnd/downloads/"
         temp = str(location).replace(" ","_")
         abs_path = (base_path + temp+'/')#encode('utf-8')
         self.creat_folder(abs_path)
@@ -32,11 +35,17 @@ class RemoteDownloadServer(object):
         subprocess.call(transmission_add_torrent)
 
     def creat_folder(self, dir):
-        real_path = "/var/media/sda1-usb-External_USB3.0_"+ dir
-        cmd_mkdir = ["ssh " + self.ssh_user + " \'[ -d "+real_path +" ] && echo ok  || mkdir -p "+real_path + "\'"]
-        cmd_chmod = ["ssh " + self.ssh_user + " \'chmod -R 777 "+ real_path +"\'"]
-        temp, err = subprocess.Popen(cmd_mkdir, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
-        temp, err = subprocess.Popen(cmd_chmod, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
+        if self.ip is "localhost":
+            real_path =  dir
+            if os.path.isdir(real_path):
+                subprocess.call(['mkdir',real_path])
+                #subprocess.call(['sudo','chmod', '-R', '777', real_path])
+        else:
+            real_path = "/var/media/sda1-usb-External_USB3.0_"+ dir
+            cmd_mkdir = ["ssh " + self.ssh_user + " \'[ -d "+real_path +" ] && echo ok  || mkdir -p "+real_path + "\'"]
+            cmd_chmod = ["ssh " + self.ssh_user + " \'chmod -R 777 "+ real_path +"\'"]
+            temp, err = subprocess.Popen(cmd_mkdir, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
+            temp, err = subprocess.Popen(cmd_chmod, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
         #ssh user@192.168.3.131 "[ -d /var/test ] && echo ok || mkdir -p /var/test"
         #subprocess.call(["ssh",cmd_mkdir])
         #subprocess.call(["ssh",cmd_chmod])
@@ -55,10 +64,14 @@ class RemoteDownloadServer(object):
         return remote_ips
 
     def remote_ip_present(self):
+        if self.ip is "localhost":
+            return True
         return self.ip in self.remote_ips() 
 
 
     def ping(self):
+        if self.ip is "localhost":
+            return True
         # Option for the number of packets as a function of
         param = '-n' if platform.system().lower()=='windows' else '-c'
         # Building the command. Ex: "ping -c 1 google.com"
