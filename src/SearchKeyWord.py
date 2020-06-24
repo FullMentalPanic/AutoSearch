@@ -15,11 +15,11 @@ try:
 except ImportError:
     from urllib import pathname2url as quote
 
-DEBUG = 0
+DEBUG = 1
 
 class dmhy_search(object):
     domain = "https://share.dmhy.org"
-    search_link="https://share.dmhy.org/topics/list?keyword="
+    search_link="https://share.dmhy.org/topics/rss/rss.xml?keyword="
     header={
        "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
        "Accept-Encoding":"gzip, deflate",
@@ -56,49 +56,29 @@ class dmhy_search(object):
        
 
     def extract_info(self):
-        count = 0
         url = self.url 
-        while count < 100:
-            res=requests.get(url)
-            bs=BeautifulSoup(res.text,"html.parser")
-            result = bs.find_all("div", class_="table clear")
-            animate_infos = result[0].find("tbody")
-            if animate_infos is None:
-                return
-            animate = animate_infos.find_all("tr", class_="")
-            for link in animate:
-                tmp = link.find("td", "title")
-                dnd_time = ((link.find("span", style ="display: none;")).text.strip())[0:10]
-                #print (dnd_time)
-                dnd_time=datetime.strptime(dnd_time, '%Y/%m/%d')
+        res=requests.get(url)
+        bs=BeautifulSoup(res.text,"html.parser")
+        result = bs.find_all("item")
+        for link in result:
+            dnd_time = (link.find("pubdate").text)[5:16]
+            dnd_time=datetime.strptime(dnd_time, '%d %b %Y')
+            title = (link.find("title")).text
+            Web_class = (link.find("category")).text
+            if Web_class == self.search_class and dnd_time > self.min_time:
+                tmp = link.find("enclosure")
+                magent = tmp.get('url') #magent
+                seg_list = jieba.cut(title, HMM=True)
+                #print (", ".join(seg_list))
+                for item in seg_list: 
+                    try:
+                        temp = int(item)
+                    except:
+                        temp = item
+                    if temp in self.number:
+                        info = [title,magent] 
+                        self.search_list_info[temp].append(info)
 
-                title = (tmp.find("a", target="_blank")).text.strip()
-                Web_class = (link.find("font")).text.strip()
-                if Web_class == self.search_class and dnd_time > self.min_time:
-                    tmp = link.find_all("td", nowrap="nowrap")
-                    magent = (tmp[0].a).get('href') #magent
-                    size = tmp[1].text.strip() #size
-                    seed = tmp[2].text.strip() # seed
-                    finished = tmp[3].text.strip() # finished
-                    seg_list = jieba.cut(title, HMM=True)
-                    #print (", ".join(seg_list))
-                    for item in seg_list: 
-                        try:
-                            temp = int(item)
-                        except:
-                            temp = item
-                        if temp in self.number:
-                            info = [title,seed,finished,magent] 
-                            self.search_list_info[temp].append(info)
-
-            change_page = result[0].find("div", class_= "fl")
-            page_links = change_page.find_all("a")
-            if len(page_links) > 1 or (len(page_links) == 1 and count == 0):
-                count = count + 1
-            else:
-                return 
-            next_page = page_links[-1].get('href')
-            url = self.domain + next_page
 
     def sort_hot_resource(self):
         for key in self.search_list_info:
@@ -106,7 +86,7 @@ class dmhy_search(object):
             #print (temp_list)
             if len(temp_list) is not  0:
                 if self.basepattern is '':
-                    temp_list.sort(key=lambda x: (x[1], x[2]))
+                    #temp_list.sort(key=lambda x: (x[1], x[2]))
                     self.search_list_magent.append(temp_list[-1])
                 else:
                     max_ratio = 0
