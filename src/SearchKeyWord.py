@@ -15,7 +15,7 @@ try:
 except ImportError:
     from urllib import pathname2url as quote
 
-DEBUG = 1
+DEBUG = 0
 
 class dmhy_search(object):
     domain = "https://share.dmhy.org"
@@ -96,12 +96,8 @@ class dmhy_search(object):
                         if ratio > max_ratio:
                             max_ratio = ratio
                             result = item
-                    #print("max tratio is {}".format(max_ratio))
-                    if max_ratio > 0.9:
-                        self.search_list_magent.append(result)
-                    else:
-                        temp_list.sort(key=lambda x: (x[1], x[2]))
-                        self.search_list_magent.append(temp_list[-1])
+                    print("max tratio is {}".format(max_ratio))
+                    self.search_list_magent.append(result)
 
 
     def string_similar(self,input_str = str()):
