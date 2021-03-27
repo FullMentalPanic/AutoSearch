@@ -1,12 +1,25 @@
 #from SearchKeyWord import dmhy_search
 #from RemoteServer import RemoteDownloadServer
 from SQLdata import SQLClient
+from RemoteServer import RemoteDownloadServer
+
+import threading
+import queue
+
 
 #IP = "192.168.1.102"
 #PORT = "9091"
 #server = RemoteDownloadServer(IP, PORT)
-SQL = SQLClient()
-SQL.run()
+q=queue.Queue(400)
+event = threading.Event()
+SQLtread = SQLClient(1,"Sqltread",q, event)
+downloder = RemoteDownloadServer(2, "DownloadServer", q, event)
+SQLtread.start()
+downloder.start()
+
+SQLtread.join()
+downloder.join()
+
 #SQL.close()
 
 #if 0:#server.remote_ip_present():

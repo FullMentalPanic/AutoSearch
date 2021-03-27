@@ -4,82 +4,56 @@ import os
 import time
 import psutil
 import platform    # For getting the operating system name
+import threading
+import queue
 
 DEBUG = 0
 
-class RemoteDownloadServer(object):
-    def __init__(self,ip= str(),port=str()):
-        print("Transmission is start....")
-        self.server = ip + ':'+port
-        self.ip = ip
-        if ip is "localhost":
-            self.ssh_user = "None"           
-        else:
-            self.ssh_user = "root@"+ ip
+class RemoteDownloadServer(threading.Thread):
+    def __init__(self,threadID, name, q=queue.Queue(200),event = threading.Event()):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.q = q
+        self.server = "localhost:9091"
+        self.event = event
+        self.hostpath  = "/home/liang/workspace/transmission/downloads/"
     
-    def start_download(self,keyword = str(),torrents = list()):
-        for torrent in torrents:
-            self.download_torrent(torrent,keyword)
+    def run(self):
+        while self.event.isSet() or not self.q.empty():
+            self.remove_finish_torrent()
 
+            while len(self.List_Torrent()) > 30:
+                time.sleep(300)
+
+            item = self.q.get()
+            print(item)
+            title = str(item[1]).replace(" ","_")
+            if self.creat_folder(self.hostpath, item[0], title):
+                location = self.hostpath + item[0] +'/'+ title + '/'
+                self.download_torrent(item[2], location)
 
     def download_torrent(self, torrent, location):
-        base_path = "/home/liang/dnd/downloads/"
-        temp = str(location).replace(" ","_")
-        abs_path = (base_path + temp+'/')#encode('utf-8')
-        self.creat_folder(abs_path)
         transmission_add_torrent = ["/usr/bin/transmission-remote",self.server, "-n", "transmission:transmission",]
         transmission_add_torrent.append("--add")
         transmission_add_torrent.append(torrent)
         transmission_add_torrent.append("-w")
-        transmission_add_torrent.append(abs_path)
+        transmission_add_torrent.append(location)
         subprocess.call(transmission_add_torrent)
 
-    def creat_folder(self, dir):
-        if self.ip is "localhost":
-            real_path =  dir
-            if os.path.isdir(real_path):
-                subprocess.call(['mkdir',real_path])
-                #subprocess.call(['sudo','chmod', '-R', '777', real_path])
-        else:
-            real_path = "/var/media/sda1-usb-External_USB3.0_"+ dir
-            cmd_mkdir = ["ssh " + self.ssh_user + " \'[ -d "+real_path +" ] && echo ok  || mkdir -p "+real_path + "\'"]
-            cmd_chmod = ["ssh " + self.ssh_user + " \'chmod -R 777 "+ real_path +"\'"]
-            temp, err = subprocess.Popen(cmd_mkdir, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
-            temp, err = subprocess.Popen(cmd_chmod, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=True).communicate()
-        #ssh user@192.168.3.131 "[ -d /var/test ] && echo ok || mkdir -p /var/test"
-        #subprocess.call(["ssh",cmd_mkdir])
-        #subprocess.call(["ssh",cmd_chmod])
+    def creat_folder(self, dir, folder1, folder2):
+        if not os.path.isdir(dir):
+            return False
+        path = dir + folder1 + '/'
+        if not os.path.exists(path):
+            subprocess.call(['mkdir',path])
+        path = path + folder2 + '/'
+        if not os.path.exists(path):
+            subprocess.call(['mkdir',path]) 
+        #subprocess.call(['sudo','chmod', '-R', '777', real_path])      
+        return True        
 
-    def remote_ips(self):
-        remote_ips = []
-        for process in psutil.process_iter():
-            try:
-                connections = process.connections(kind='inet')
-            except psutil.AccessDenied or psutil.NoSuchProcess:
-                pass
-            else:
-                for connection in connections:
-                    if connection.raddr and connection.raddr[0] not in remote_ips:
-                        remote_ips.append(connection.raddr[0])
-        return remote_ips
-
-    def remote_ip_present(self):
-        if self.ip is "localhost":
-            return True
-        return self.ip in self.remote_ips() 
-
-
-    def ping(self):
-        if self.ip is "localhost":
-            return True
-        # Option for the number of packets as a function of
-        param = '-n' if platform.system().lower()=='windows' else '-c'
-        # Building the command. Ex: "ping -c 1 google.com"
-        command = ['ping', param, '1', self.ip]
-
-        return subprocess.call(command) == 0
-
-    def List_Torrent(self):
+    def List_Torrent(self)->list():
         try:
             cmd = "/usr/bin/transmission-remote " + self.server + " -n transmission:transmission -l"
             transmission_list = [cmd]
@@ -120,12 +94,3 @@ class RemoteDownloadServer(object):
                     pass
             if ID != '-t':
                 self.Romove_Torrent(ID)
-
-if DEBUG == 1:
-    IP = "192.168.1.102"
-    PORT = "9091"
-    server = RemoteDownloadServer(IP, PORT)
-    if server.ping():
-        print ("connect")
-    else:
-        print("No connect")

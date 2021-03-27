@@ -2,74 +2,71 @@ import pymysql
 import settings
 import pandas as pd
 from sqlalchemy import create_engine
-from RemoteServer import RemoteDownloadServer
 from SearchKeyWord import dmhy_search
 import datetime
+from datetime import datetime
 import time
+import threading
+import queue
 
-class SQLClient(object):
+class SQLClient(threading.Thread):
 
-    def __init__(self):
+    def __init__(self, threadID, name, q=queue.Queue(200),event = threading.Event()):
         db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
         self.db = create_engine(db_connection_str)
         self.connection = self.db.connect()
-        IP = "localhost"
-        PORT = "9091"
-        self.server = RemoteDownloadServer(IP, PORT)
+        self.dmhy = dmhy_search()
+
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.q = q
+        if not event.isSet():    #初始化evet的flag为真
+            self.event = event.set()    #wait就不阻塞 #绿灯状态
 
     def run(self):
-        if self.server.ping():
-            df = self.read_table('TableList')
-            df['date'] = pd.to_datetime(df['date'])            
-            now = datetime.datetime.now()
-            max_date = now - datetime.timedelta(weeks = 1)
-            min_date = now - datetime.timedelta(weeks = 24)
-            every_date = datetime.datetime.strptime('1991-01-22', '%Y-%m-%d')
-            search_table =df[((df['date'] > min_date) & (df['date'] < max_date)) | (df['date'] <every_date)]
-            #search_table = df
-            for index_table, row_table in search_table.iterrows():
-                print(row_table['title'])
-                df = self.read_table(row_table['title'])
-                date = row_table['date']
-                for index, row in df.iterrows():
-                    result = True
-                    nums = int(row['nums'])
-                    pattern =  df['last_title'][index]
-                    print(row['animatetitle'])
-                    while result:
-                        retry = 0
-                        try:
-                            dmhy = dmhy_search(row['animatetitle'],[nums],min_time =date, basepattern = pattern)
-                            to_do = dmhy.run()
-                            if len(to_do) == 0:
-                                result = False
-                                df['nums'][index] = str(nums)
-                                df['last_title'][index] = pattern
-                                self.update_row_data(row_table['title'], row['animatetitle'], str(nums),pattern)
-                            else:
-                                print("download {}, number {}".format(row['animatetitle'], nums)) 
-                                torrent = [item[-1] for item in to_do]
-                                pattern = [item[0] for item in to_do][0]
-                                #print (pattern)
-                                #index_num =  [item[0] for item in to_do]
-                                self.server.start_download(row['animatetitle'],torrent)
-                                nums = nums + 1
-                        except:
-                            retry = retry + 1
-                            if retry > 5:
-                                #save broken point
-                                df['nums'][index] = str(nums)
-                                df['last_title'][index] = pattern
-                                self.update_row_data(row_table['title'], row['animatetitle'], str(nums),pattern)
+        search_table = []
+        search_table += self.generate_search_table()
+        for table in search_table:
+            print(table)
+            try:
+                df = self.read_table(table[0])
+            except:
+                print("can not find table")
+                continue
+            date = table[1]
+            for index, row in df.iterrows():
+                result = True
+                num = int(row['nums'])
+                pattern =  df['last_title'][index]
+                print(row['animatetitle'])
+                while result:
+                    nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern)
+
+                    if nextepisode == num:
+                        titles = row['othertitle'].split(',')
+                        for title in titles:
+                            nextepisode, pattern ,torrents = self.dmhy.run(title, num, min_time =date, basepattern = pattern)
+                            if nextepisode != num:
                                 break
-                            else:                
-                                time.sleep(10)
-                    self.server.remove_finish_torrent()
-                    while (len(self.server.List_Torrent()) > 20):
-                        time.sleep(60)
-                        self.server.remove_finish_torrent()
-        else:
-            print ("no connection")
+
+                    if nextepisode == num:
+                        result = False
+                        self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
+                    else:
+                        for torrent in torrents:
+                            print("download {}, number {}".format(row['animatetitle'], num))
+                            while self.q.full():
+                                time.sleep(60)
+                            self.q.put((table[0],row['animatetitle'],torrent))
+                            num = num + 1
+
+                        num = nextepisode
+                        self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
+                time.sleep(1)
+        self.event.clear()    #wait就不阻塞 #绿灯状态
+        self.connection.close()
+
 
     def read_table(self,tableName):
         return pd.read_sql(tableName,self.db)
@@ -78,10 +75,38 @@ class SQLClient(object):
         df.to_sql(tableName, self.db, if_exists="replace")
     
     def update_row_data(self, tableName, animatetitle, nums, last_title):
+        #return
         SQL = """update {} set nums = \'{}\', last_title = \'{}\' where animatetitle = \'{}\' """.format(tableName, nums, last_title, animatetitle)
         self.connection.execute(SQL)
 
+    def generate_search_table(self)->list():
+        now = datetime.now()
+        search_table = []
+        if now.month < 4:
+            date = datetime(now.year - 1, 6, 1, 0, 0)
+            search_table.append(('s'+str(now.year - 1) + '10',date))
+            date = datetime(now.year -1, 9, 1, 0, 0)
+            search_table.append(('s'+str(now.year) + '01',date))
 
+        elif now.month < 7:
+            date = datetime(now.year -1, 9, 1, 0, 0)
+            search_table.append(('s'+str(now.year) + '01',date))
+            date = datetime(now.year-1, 12, 1, 0, 0)
+            search_table.append(('s'+str(now.year) + '04',date))
+
+        elif now.month < 10:
+            date = datetime(now.year-1, 12, 1, 0, 0)
+            search_table.append(('s'+str(now.year) + '04',date))
+            date = datetime(now.year, 3, 1, 0, 0)
+            search_table.append(('s'+str(now.year) + '07',date))
+
+        elif now.month <= 12:
+            date = datetime(now.year, 3, 1, 0, 0)
+            search_table.append('s'+str(now.year) + '07',date)
+            date = datetime(now.year, 6, 1, 0, 0)
+            search_table.append('s'+str(now.year) + '10',date)
+
+        return search_table
 
 
     #def close(self):
