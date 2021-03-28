@@ -10,24 +10,23 @@ import queue
 DEBUG = 0
 
 class RemoteDownloadServer(threading.Thread):
-    def __init__(self,threadID, name, q=queue.Queue(200),event = threading.Event()):
+    def __init__(self,threadID, name, q=queue.Queue(200),event = threading.Event(),hostpath = ''):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.q = q
         self.server = "localhost:9091"
         self.event = event
-        self.hostpath  = "/home/liang/workspace/transmission/downloads/"
+        self.hostpath  = hostpath
     
     def run(self):
         while self.event.isSet() or not self.q.empty():
-            self.remove_finish_torrent()
-
-            while len(self.List_Torrent()) > 30:
+            
+            while self.remove_finish_torrent() > 25:
                 time.sleep(300)
 
             item = self.q.get()
-            print(item)
+            #print(item)
             title = str(item[1]).replace(" ","_")
             if self.creat_folder(self.hostpath, item[0], title):
                 location = self.hostpath + item[0] +'/'+ title + '/'
@@ -35,22 +34,23 @@ class RemoteDownloadServer(threading.Thread):
 
     def download_torrent(self, torrent, location):
         transmission_add_torrent = ["/usr/bin/transmission-remote",self.server, "-n", "transmission:transmission",]
-        transmission_add_torrent.append("--add")
-        transmission_add_torrent.append(torrent)
         transmission_add_torrent.append("-w")
         transmission_add_torrent.append(location)
+        transmission_add_torrent.append("--add")
+        transmission_add_torrent.append(torrent)
         subprocess.call(transmission_add_torrent)
+        time.sleep(2)
 
     def creat_folder(self, dir, folder1, folder2):
         if not os.path.isdir(dir):
             return False
         path = dir + folder1 + '/'
         if not os.path.exists(path):
-            subprocess.call(['mkdir',path])
+            subprocess.call(['mkdir','-m', '777',path])
         path = path + folder2 + '/'
         if not os.path.exists(path):
-            subprocess.call(['mkdir',path]) 
-        #subprocess.call(['sudo','chmod', '-R', '777', real_path])      
+            subprocess.call(['mkdir','-m', '777',path]) 
+        #subprocess.call(['sudo','chmod', '-R', '777', path])      
         return True        
 
     def List_Torrent(self)->list():
@@ -82,15 +82,19 @@ class RemoteDownloadServer(threading.Thread):
 
     def remove_finish_torrent(self): 
         check_list =  self.List_Torrent()
-        if not check_list:
-            pass
+        count = len(check_list)
+        if count == 0:
+            return count
         else:
             ID ='-t'
             for item in check_list:
                 temp = item.split()
                 if temp[4] == 'Done':
                     ID = ID+temp[0]+','
+                    count = count - 1
                 else:
                     pass
             if ID != '-t':
                 self.Romove_Torrent(ID)
+
+            return count

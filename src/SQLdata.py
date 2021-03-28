@@ -11,7 +11,7 @@ import queue
 
 class SQLClient(threading.Thread):
 
-    def __init__(self, threadID, name, q=queue.Queue(200),event = threading.Event()):
+    def __init__(self, threadID, name, q=queue.Queue(200),event = threading.Event(), hostpath = ''):
         db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
         self.db = create_engine(db_connection_str)
         self.connection = self.db.connect()
@@ -21,8 +21,9 @@ class SQLClient(threading.Thread):
         self.threadID = threadID
         self.name = name
         self.q = q
-        if not event.isSet():    #初始化evet的flag为真
-            self.event = event.set()    #wait就不阻塞 #绿灯状态
+        if not event.isSet():  
+            self.event = event.set()   
+        self.hostpath = hostpath
 
     def run(self):
         search_table = []
@@ -64,7 +65,7 @@ class SQLClient(threading.Thread):
                         num = nextepisode
                         self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
                 time.sleep(1)
-        self.event.clear()    #wait就不阻塞 #绿灯状态
+        self.event.clear()
         self.connection.close()
 
 

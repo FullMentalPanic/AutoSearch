@@ -10,10 +10,11 @@ import queue
 #IP = "192.168.1.102"
 #PORT = "9091"
 #server = RemoteDownloadServer(IP, PORT)
+hostpath = "/home/liang/workspace/transmission/downloads/downloads/"
 q=queue.Queue(400)
 event = threading.Event()
-SQLtread = SQLClient(1,"Sqltread",q, event)
-downloder = RemoteDownloadServer(2, "DownloadServer", q, event)
+SQLtread = SQLClient(1,"Sqltread",q, event, hostpath)
+downloder = RemoteDownloadServer(2, "DownloadServer", q, event, hostpath)
 SQLtread.start()
 downloder.start()
 
