@@ -8,10 +8,12 @@ from datetime import datetime
 import time
 import threading
 import queue
+import os
+import CommonFlag
 
 class SQLClient(threading.Thread):
 
-    def __init__(self, threadID, name, q=queue.Queue(200),event = threading.Event(), hostpath = ''):
+    def __init__(self, threadID, name, q=queue.Queue(200), hostpath = ''):
         db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
         self.db = create_engine(db_connection_str)
         self.connection = self.db.connect()
@@ -20,13 +22,14 @@ class SQLClient(threading.Thread):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
-        self.q = q
-        if not event.isSet():  
-            self.event = event.set()   
+        self.q = q  
         self.hostpath = hostpath
 
     def run(self):
-        search_table = []
+        print("start SQLClient thread")
+        #search_table = ['weekly']
+        temp_date = datetime(2020, 12, 1, 0, 0)
+        search_table = [('weekly',temp_date)]
         search_table += self.generate_search_table()
         for table in search_table:
             print(table)
@@ -40,16 +43,25 @@ class SQLClient(threading.Thread):
                 result = True
                 num = int(row['nums'])
                 pattern =  df['last_title'][index]
+                #pattern = ''
                 print(row['animatetitle'])
+                hd = True
+                if row['animatetitle'] == '黑色五葉草':
+                    hd = False # workaround 
                 while result:
-                    nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern)
+                    if row['cross_s'] == 'Y' and self.check_exist(table[0],row['animatetitle']):
+                        print("already exist last season")
+                        result = False
+                        break
 
-                    if nextepisode == num:
-                        titles = row['othertitle'].split(',')
-                        for title in titles:
-                            nextepisode, pattern ,torrents = self.dmhy.run(title, num, min_time =date, basepattern = pattern)
-                            if nextepisode != num:
-                                break
+                    nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern,HD = hd)
+
+                    #if nextepisode == num:
+                    #    titles = row['othertitle'].split(',')
+                    #    for title in titles:
+                    #        nextepisode, pattern ,torrents = self.dmhy.run(title, num, min_time =date, basepattern = pattern)
+                    #        if nextepisode != num:
+                    #            break
 
                     if nextepisode == num:
                         result = False
@@ -65,9 +77,28 @@ class SQLClient(threading.Thread):
                         num = nextepisode
                         self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
                 time.sleep(1)
-        self.event.clear()
-        self.connection.close()
+        self.close_sql()
+        time.sleep(1)
+        CommonFlag.SearchDone = 1
+        print("End SQLClient thread")
 
+    def check_exist(self,table,title):
+        animatetitle = str(title).replace(" ","_")
+        year = int(table[1:5])
+        month = int(table[5:7])
+        if month == 1:
+            month = str(10)
+            year = str(year - 1)
+        else:
+            month = month - 3
+            month = '0' + str(month)
+            year = str(year)
+        tablefolder = 's' + str(year) +month
+        location = self.hostpath + tablefolder +'/'+ animatetitle + '/'
+        if os.path.exists(location):
+            return True
+        else:
+            return False
 
     def read_table(self,tableName):
         return pd.read_sql(tableName,self.db)
@@ -77,10 +108,15 @@ class SQLClient(threading.Thread):
     
     def update_row_data(self, tableName, animatetitle, nums, last_title):
         #return
-        SQL = """update {} set nums = \'{}\', last_title = \'{}\' where animatetitle = \'{}\' """.format(tableName, nums, last_title, animatetitle)
-        self.connection.execute(SQL)
+        try:
+            SQL = """update {} set nums = \'{}\', last_title = \'{}\' where animatetitle = \'{}\' """.format(tableName, nums, last_title, animatetitle)
+            self.connection.execute(SQL)
+        except:
+            print("can not access SQL")
+    
 
-    def generate_search_table(self)->list():
+
+    def generate_search_table(self):
         now = datetime.now()
         search_table = []
         if now.month < 4:
@@ -109,6 +145,16 @@ class SQLClient(threading.Thread):
 
         return search_table
 
+    def connectSQL(self):
+        self.close_sql()
+        time.sleep(5)
+        db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
+        self.db = create_engine(db_connection_str)
+        self.connection = self.db.connect()
 
-    #def close(self):
-    #     self.db_connection.close()
+    def close_sql(self):
+        try:
+            self.connection.close()
+            self.db.dispose()
+        except:
+            print("try to disconnect SQL")

@@ -1,6 +1,6 @@
 #!/bin/bash
-cd /hdd/workspace/
+cd /home/liang/workspace/
 source ./env/bin/activate
-cd /hdd/workspace/AutoSearch/src/
-/hdd/workspace/env/bin/python main.py
+cd /home/liang/workspace/autosearch/
+/home/liang/workspace/env/bin/python main.py
 deactivate

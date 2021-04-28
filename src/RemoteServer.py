@@ -6,31 +6,34 @@ import psutil
 import platform    # For getting the operating system name
 import threading
 import queue
+import CommonFlag
 
 DEBUG = 0
 
 class RemoteDownloadServer(threading.Thread):
-    def __init__(self,threadID, name, q=queue.Queue(200),event = threading.Event(),hostpath = ''):
+    def __init__(self,threadID, name, q=queue.Queue(200),hostpath = ''):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.q = q
         self.server = "localhost:9091"
-        self.event = event
         self.hostpath  = hostpath
     
     def run(self):
-        while self.event.isSet() or not self.q.empty():
+        print("start RemoteDownloadServer thread")
+        while (not CommonFlag.SearchDone) or (not self.q.empty()):
             
             while self.remove_finish_torrent() > 25:
                 time.sleep(300)
-
+            if self.q.empty():
+                time.sleep(30)
+                continue
             item = self.q.get()
-            #print(item)
             title = str(item[1]).replace(" ","_")
             if self.creat_folder(self.hostpath, item[0], title):
                 location = self.hostpath + item[0] +'/'+ title + '/'
                 self.download_torrent(item[2], location)
+        print("End RemoteDownloadServer thread")
 
     def download_torrent(self, torrent, location):
         transmission_add_torrent = ["/usr/bin/transmission-remote",self.server, "-n", "transmission:transmission",]
