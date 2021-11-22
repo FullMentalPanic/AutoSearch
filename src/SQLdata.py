@@ -139,9 +139,9 @@ class SQLClient(threading.Thread):
 
         elif now.month <= 12:
             date = datetime(now.year, 3, 1, 0, 0)
-            search_table.append('s'+str(now.year) + '07',date)
+            search_table.append(('s'+str(now.year) + '07',date))
             date = datetime(now.year, 6, 1, 0, 0)
-            search_table.append('s'+str(now.year) + '10',date)
+            search_table.append(('s'+str(now.year) + '10',date))
 
         return search_table
 
