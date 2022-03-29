@@ -1,33 +1,21 @@
-import pymysql
-import settings
+
 import pandas as pd
-from sqlalchemy import create_engine
 from SearchKeyWord import dmhy_search
+from RemoteServer import RemoteDownloadServer
 import datetime
 from datetime import datetime
-import time
-import threading
-import queue
 import os
-import CommonFlag
 
-class SQLClient(threading.Thread):
+csvBasePath='/home/liang/hdd/d5/animate/'
 
-    def __init__(self, threadID, name, q=queue.Queue(200), hostpath = ''):
-        db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
-        self.db = create_engine(db_connection_str)
-        self.connection = self.db.connect()
+class DownloadByCsv(RemoteDownloadServer):
+
+    def __init__(self, hostpath = ''):
+        super(DownloadByCsv, self).__init__(hostpath = '')
         self.dmhy = dmhy_search()
-
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.q = q  
         self.hostpath = hostpath
 
     def run(self):
-        print("start SQLClient thread")
-        #search_table = ['weekly']
         temp_date = datetime(2020, 12, 1, 0, 0)
         search_table = [('weekly',temp_date)]
         search_table += self.generate_search_table()
@@ -43,7 +31,6 @@ class SQLClient(threading.Thread):
                 result = True
                 num = int(row['nums'])
                 pattern =  df['last_title'][index]
-                #pattern = ''
                 print(row['animatetitle'])
                 hd = True
                 if row['animatetitle'] == '黑色五葉草':
@@ -56,31 +43,19 @@ class SQLClient(threading.Thread):
 
                     nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern,HD = hd)
 
-                    #if nextepisode == num:
-                    #    titles = row['othertitle'].split(',')
-                    #    for title in titles:
-                    #        nextepisode, pattern ,torrents = self.dmhy.run(title, num, min_time =date, basepattern = pattern)
-                    #        if nextepisode != num:
-                    #            break
-
                     if nextepisode == num:
                         result = False
-                        self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
+                        df['last_title'][index] = pattern
+                        df['nums'][index] = str(num)
                     else:
                         for torrent in torrents:
                             print("download {}, number {}".format(row['animatetitle'], num))
-                            while self.q.full():
-                                time.sleep(60)
-                            self.q.put((table[0],row['animatetitle'],torrent))
+                            self.download(table[0],row['animatetitle'],torrent)
                             num = num + 1
-
                         num = nextepisode
-                        self.update_row_data(table[0], row['animatetitle'], str(num),pattern)
-                time.sleep(1)
-        self.close_sql()
-        time.sleep(1)
-        CommonFlag.SearchDone = 1
-        print("End SQLClient thread")
+                        df['last_title'][index] = pattern
+                        df['nums'][index] = str(num)
+            self.update_table(table[0], df)
 
     def check_exist(self,table,title):
         animatetitle = str(title).replace(" ","_")
@@ -101,20 +76,14 @@ class SQLClient(threading.Thread):
             return False
 
     def read_table(self,tableName):
-        return pd.read_sql(tableName,self.db)
+        file = csvBasePath+tableName+'.csv'
+        df = pd.read_csv(file)
+        df = df.fillna('')
+        return df
 
-    def udpate_table(self, tableName, df = pd.DataFrame()):
-        df.to_sql(tableName, self.db, if_exists="replace")
-    
-    def update_row_data(self, tableName, animatetitle, nums, last_title):
-        #return
-        try:
-            SQL = """update {} set nums = \'{}\', last_title = \'{}\' where animatetitle = \'{}\' """.format(tableName, nums, last_title, animatetitle)
-            self.connection.execute(SQL)
-        except:
-            print("can not access SQL")
-    
-
+    def update_table(self, tableName, df = pd.DataFrame()):
+        file = csvBasePath+tableName+'.csv'
+        df.to_csv(file,index=False)
 
     def generate_search_table(self):
         now = datetime.now()
@@ -145,16 +114,3 @@ class SQLClient(threading.Thread):
 
         return search_table
 
-    def connectSQL(self):
-        self.close_sql()
-        time.sleep(5)
-        db_connection_str = 'mysql+pymysql://'+ settings.MYSQL_USER +':'+ settings.MYSQL_PASSWD+'@'+settings.MYSQL_HOST+'/'+settings.MYSQL_DBNAME
-        self.db = create_engine(db_connection_str)
-        self.connection = self.db.connect()
-
-    def close_sql(self):
-        try:
-            self.connection.close()
-            self.db.dispose()
-        except:
-            print("try to disconnect SQL")

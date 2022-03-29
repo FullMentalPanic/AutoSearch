@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 #this file is to find torrent to download, use jieba to find episode and format 
-
-import os
-import subprocess
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -113,6 +110,7 @@ class dmhy_search(object):
                 #print(title)
                 #print(re_string)
                 if _match:
+
                     if re_string != '':
                         if pattern_learn:
                             if re_string in patterns:
