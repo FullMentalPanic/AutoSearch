@@ -16,6 +16,7 @@ class DownloadByCsv(RemoteDownloadServer):
         self.hostpath = hostpath
 
     def run(self):
+        self.remove_finish_torrent()
         temp_date = datetime(2020, 12, 1, 0, 0)
         search_table = [('weekly',temp_date)]
         search_table += self.generate_search_table()
