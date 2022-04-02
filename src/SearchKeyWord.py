@@ -179,6 +179,9 @@ class dmhy_search(object):
             if not support_4K and item in ['3840×2160', '3840 × 2160','2160p','2160P']:
                 HD_result = False
                 return  False,0,''
+            
+            if item in ['B-Global']: #remove those un wanted resource
+                return  False,0,''
 
             if item.isnumeric():
                 try:
