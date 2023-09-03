@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #this file is to find torrent to download, use jieba to find episode and format 
 import requests
+from requests.adapters import HTTPAdapter, Retry
 import re
 from bs4 import BeautifulSoup
 import jieba
@@ -83,9 +84,31 @@ class dmhy_search(object):
 
 
     def extract_info(self, key: str, episodes:list(), search_class:str, min_time=datetime(2018, 9, 1, 0, 0),basepattern = '',HD = True):
-        url = self.search_link + key
-        animatelist = dict()
-        res=requests.get(url)
+        retry_count = 0
+        connect_times = 0
+        backoff_factor_value= 0
+        time_sleep = 0
+        while retry_count < 3:
+            connect_times += 3
+            backoff_factor_value += 3
+            session = requests.Session()
+            retry = Retry(connect=connect_times, backoff_factor=backoff_factor_value)
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+            url = self.search_link + key
+            animatelist = dict()
+            try:
+                res=requests.get(url, timeout=30)
+            except Exception as err:
+                print("meet issue")
+                print(err)
+                time_sleep +=30
+                time.sleep(time_sleep)
+                retry_count += 1
+                print("retry count = {}".format(retry_count))
+            else:
+                break
         bs=BeautifulSoup(res.text,"html.parser")
         result = bs.find_all("item")
         mybasepattern = basepattern
