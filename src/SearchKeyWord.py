@@ -88,7 +88,7 @@ class dmhy_search(object):
         connect_times = 0
         backoff_factor_value= 0
         time_sleep = 0
-        while retry_count < 3:
+        while retry_count <= 6:
             connect_times += 3
             backoff_factor_value += 3
             session = requests.Session()
@@ -109,6 +109,8 @@ class dmhy_search(object):
                 print("retry count = {}".format(retry_count))
             else:
                 break
+        else:
+            raise err
         bs=BeautifulSoup(res.text,"html.parser")
         result = bs.find_all("item")
         mybasepattern = basepattern

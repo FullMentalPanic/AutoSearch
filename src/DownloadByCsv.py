@@ -18,6 +18,8 @@ class DownloadByCsv(RemoteDownloadServer):
     def run(self):
         self.remove_finish_torrent()
         temp_date = datetime(2020, 12, 1, 0, 0)
+        dt = datetime.now()
+        weekyday = dt.weekday()
         search_table = [('weekly',temp_date)]
         search_table += self.generate_search_table()
         for table in search_table:
@@ -28,34 +30,48 @@ class DownloadByCsv(RemoteDownloadServer):
                 print("can not find table")
                 continue
             date = table[1]
-            for index, row in df.iterrows():
-                result = True
-                num = int(row['nums'])
-                pattern =  df['last_title'][index]
-                print(row['animatetitle'])
-                hd = True
-                if row['animatetitle'] == '黑色五葉草':
-                    hd = False # workaround 
-                while result:
-                    if row['cross_s'] == 'Y' and self.check_exist(table[0],row['animatetitle']):
-                        print("already exist last season")
-                        result = False
-                        break
+            count = 0
+            start = weekyday * 10
+            end = (weekyday + 1) * 10
+            try:
+                for index, row in df.iterrows():
+                    if count < start:
+                        count += 1
+                        continue
+                    if count >= end:
+                        count += 1
+                        continue
+                    count += 1
+                    result = True
+                    num = int(row['nums'])
+                    pattern =  df['last_title'][index]
+                    print(row['animatetitle'])
+                    hd = True
+                    if row['animatetitle'] == '黑色五葉草':
+                        hd = False # workaround 
+                    while result:
+                        if row['cross_s'] == 'Y' and self.check_exist(table[0],row['animatetitle']):
+                            print("already exist last season")
+                            result = False
+                            break
 
-                    nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern,HD = hd)
+                        nextepisode, pattern ,torrents = self.dmhy.run(row['animatetitle'], num, min_time =date, basepattern = pattern,HD = hd)
 
-                    if nextepisode == num:
-                        result = False
-                        df['last_title'][index] = pattern
-                        df['nums'][index] = str(num)
-                    else:
-                        for torrent in torrents:
-                            print("download {}, number {}".format(row['animatetitle'], num))
-                            self.download(table[0],row['animatetitle'],torrent)
-                            num = num + 1
-                        num = nextepisode
-                        df['last_title'][index] = pattern
-                        df['nums'][index] = str(num)
+                        if nextepisode == num:
+                            result = False
+                            df['last_title'][index] = pattern
+                            df['nums'][index] = str(num)
+                        else:
+                            for torrent in torrents:
+                                print("download {}, number {}".format(row['animatetitle'], num))
+                                self.download(table[0],row['animatetitle'],torrent)
+                                num = num + 1
+                            num = nextepisode
+                            df['last_title'][index] = pattern
+                            df['nums'][index] = str(num)
+            except Exception as err:
+                self.update_table(table[0], df)
+                raise err
             self.update_table(table[0], df)
 
     def check_exist(self,table,title):
