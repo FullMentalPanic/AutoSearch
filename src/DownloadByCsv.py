@@ -6,7 +6,7 @@ import datetime
 from datetime import datetime
 import os
 
-csvBasePath='/home/liang/hdd/d4/recording/'
+csvBasePath='/home/liang/hdd/d1/recording/'
 
 class DownloadByCsv(RemoteDownloadServer):
 
